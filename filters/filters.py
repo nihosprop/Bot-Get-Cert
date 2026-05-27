@@ -25,13 +25,18 @@ class IsPragmaticCoursesFilter(BaseFilter):
 class IsBestPythonCoursesFilter(BaseFilter):
     async def __call__(self, clbk: CallbackQuery, config: Config) -> bool:
         logger_filters.debug('Entry')
+
         logger_filters.debug(f'{clbk.data=}')
         logger_filters.debug(f'{config.courses_data.best_in_python_courses=}')
 
-        if not clbk.data.isdigit():
+        callback_data = clbk.data
+        if callback_data is None:
             return False
 
-        return int(clbk.data) in config.courses_data.best_in_python_courses
+        if not callback_data.isdigit():
+            return False
+
+        return int(callback_data) in config.courses_data.best_in_python_courses
 
 
 class CallBackFilter(BaseFilter):
