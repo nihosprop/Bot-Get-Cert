@@ -71,7 +71,17 @@ quote-style = "single"
 # C4    — comprehensions (clean generator/list comprehensions)
 # SIM   — simplifications (code simplification suggestions)
 # PL    — pylint (extra checks)
-select = ["E", "F", "I", "UP", "B", "ANN", "N", "C4", "SIM", "PL"]
+select = [
+    "E",
+    "F",
+    "I",
+    "UP",
+    "B",
+    "ANN",
+    "N",
+    "C4",
+    "SIM",
+    "PL"]
 
 # Ignore PLR2004 Magic value
 ignore = ["PLR2004"]
