@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: Bot_Get_Cert
+    container_name: Bot_Get_Cert-Dev
     restart: unless-stopped
     env_file: .env
     logging:

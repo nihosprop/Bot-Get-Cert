@@ -1,8 +1,8 @@
 # PROD_COMPOSE
 services:
   main:
-    image: niwibonihs/bot_get_cert:v3.2
-    container_name: BotGetCert
+    image: niwibonihs/bot_get_cert:${APP_TAG}
+    container_name: GetCert-Bot
     user: "1000:1000"
     restart: "unless-stopped"
     env_file: .env
@@ -17,16 +17,16 @@ services:
       - ./data:/app/data  # Монтируем папку для обмена файлами
       - ./logs:/app/logs # Монтируем папку для логов
     networks:
-      - my-network
+      - get-cert-net
     deploy:
       resources:
         limits:
-          cpus: '0.5'
+          cpus: '0.2'
           memory: 512M
 
   redis_fsm:
     image: "redis:7"
-    container_name: RedisFSM
+    container_name: GetCert-Redis
     restart: "unless-stopped"
     volumes:
       - ./redis.conf:/usr/local/etc/redis/redis.conf  # Монтируем конфигурационный файл
@@ -40,16 +40,15 @@ services:
       timeout: 5s
       retries: 3
     networks:
-      - my-network
+      - get-cert-net
     deploy:
       resources:
         limits:
           memory: 32M
 
-
 volumes:
   redis_data:
 
 networks:
-  Your-Network-Name:
-    name: Your-Network-Name
+  get-cert-net:
+    name: GetCert-Net

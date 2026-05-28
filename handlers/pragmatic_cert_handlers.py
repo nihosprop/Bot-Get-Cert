@@ -214,7 +214,8 @@ async def clbk_back_to_sent_stepik_link(clbk: CallbackQuery,
 
 @router.callback_query(F.data == 'done',
                        StateFilter(FSMPragmaticGetCert.data_confirm))
-# TODO: reduce branches & statements
+# TODO: Ruff(too-many-branches)
+# TODO: Ruff(too-many-statements)
 async def clbk_done(
         clbk: CallbackQuery,
         state: FSMContext,
