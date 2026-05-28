@@ -2,7 +2,7 @@ import logging
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 
 from filters.filters import IsPrivateChat
 from keyboards.keyboards import kb_butt_quiz
@@ -34,6 +34,10 @@ async def clbk_exit(
     """
     logger.debug('Entry')
 
+    if not clbk.message or not isinstance(clbk.message, Message):
+        logger.error('Callback query message is None or inaccessible')
+        return
+
     try:
         await msg_processor.deletes_messages(
             msgs_remove_kb=True, msgs_for_del=True
@@ -44,7 +48,7 @@ async def clbk_exit(
         )
 
     try:
-        value = await clbk.message.answer(
+        msg = await clbk.message.answer(
             LexiconRu.text_survey,
             reply_markup=kb_butt_quiz,
             disable_web_page_preview=True,
@@ -52,7 +56,7 @@ async def clbk_exit(
     except Exception as err:
         logger.error(f'{err.__class__.__name__}', exc_info=True)
     else:
-        await msg_processor.save_msg_id(value, msgs_for_del=True)
+        await msg_processor.save_msg_id(msg, msgs_for_del=True)
     await state.set_state(state=None)
     await clbk.answer()
 
