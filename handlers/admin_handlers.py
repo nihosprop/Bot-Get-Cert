@@ -44,6 +44,13 @@ async def cmd_start(
 async def clbk_back_newsletter(
     clbk: CallbackQuery, state: FSMContext, redis_data: Redis
 ) -> None:
+
+    logger_admin.debug('Entry')
+
+    if not clbk.message or not isinstance(clbk.message, Message):
+        logger_admin.error('Callback message is None or inaccessible')
+        return
+
     end_cert = str(await redis_data.get('end_number')).zfill(6)
 
     await clbk.message.edit_text(
@@ -52,6 +59,8 @@ async def clbk_back_newsletter(
     )
     await state.set_state(FSMAdminPanel.admin_menu)
     await clbk.answer()
+
+    logger_admin.debug('Exit')
 
 
 @admin_router.message(F.text == '/admin')
@@ -62,7 +71,8 @@ async def cmd_admin(
     msg_processor: MessageProcessor,
 ) -> None:
     logger_admin.info(
-        f'Вход в админку:{msg.from_user.id}:{await get_username(msg)}'
+        f'Login to the admin panel:{msg.from_user.id}:'
+        f'{await get_username(msg)}'
     )
     keys = set(filter(lambda _id: _id.isdigit(), await redis_data.keys()))
     logger_admin.debug(f'{keys=}')
