@@ -1,5 +1,7 @@
 import logging
 
+from typing import Any
+
 from aiogram import F, Router
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
@@ -191,7 +193,7 @@ async def clbk_done_newsletter(
 
     await msg_processor.delete_message()
 
-    msg_letter: str = await state.get_value('msg_letter')
+    msg_letter: Any | None = await state.get_value('msg_letter')
     user_ids = set(
         map(int, filter(lambda _id: _id.isdigit(), await redis_data.keys()))
     )
