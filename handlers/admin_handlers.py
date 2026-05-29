@@ -46,7 +46,6 @@ async def cmd_start(
 async def clbk_back_newsletter(
     clbk: CallbackQuery, state: FSMContext, redis_data: Redis
 ) -> None:
-
     logger_admin.debug('Entry')
 
     if not clbk.message or not isinstance(clbk.message, Message):
@@ -72,6 +71,13 @@ async def cmd_admin(
     redis_data: Redis,
     msg_processor: MessageProcessor,
 ) -> None:
+    if not msg.from_user:
+        logger_admin.warning(
+            'Login to the admin panel failed.'
+            ' Message without user info received.'
+        )
+        return
+
     logger_admin.info(
         f'Login to the admin panel:{msg.from_user.id}:'
         f'{await get_username(msg)}'
@@ -98,16 +104,26 @@ async def cmd_exit(
     logger_admin.info(
         f'Выход из админки:{clbk.from_user.id}:{await get_username(clbk)}'
     )
+
+    if not clbk.message or not isinstance(clbk.message, Message):
+        logger_admin.warning('Callback message is None or inaccessible')
+        return
+
     await state.set_state(state=None)
-    value = await clbk.message.edit_text(
+    msg = await clbk.message.edit_text(
         f'Вы вышли из админ-панели✅\n{LexiconRu.text_survey}',
         reply_markup=kb_butt_quiz,
         disable_web_page_preview=True,
     )
-    await msg_processor.save_msg_id(value, msgs_for_del=True)
+    if isinstance(msg, bool):
+        logger_admin.warning('Message is not accessible, received `bool`, '
+                             'expected `Message`')
+        return
+    await msg_processor.save_msg_id(msg, msgs_for_del=True)
     await clbk.answer()
 
 
+# TODO: remove handler
 @admin_router.callback_query(
     F.data == 'certs_data', StateFilter(FSMAdminPanel.admin_menu)
 )
@@ -120,7 +136,7 @@ async def clbk_check_data_certs(
     )
     await clbk.answer('Сбор данных…')
     text = await get_data_users(clbk, redis_data=redis_data)
-    await clbk.message.edit_text(text=text)
+    await  clbk.message.edit_text(text=text)
     await state.clear()
 
 
