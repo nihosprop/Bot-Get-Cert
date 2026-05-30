@@ -73,7 +73,7 @@ class IsValidProfileLink(BaseFilter):
         msg_processor = MessageProcessor(msg, state)
         text = msg.text.strip()
 
-        # Ищет ссылку в любом месте текста
+        # Looks for a link anywhere in the text
         match = re.search(
             r'\bhttps?://[^\s/]+/users/(\d+)(?:/profile)?/?\b',
             text,
