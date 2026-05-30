@@ -71,6 +71,14 @@ class IsValidProfileLink(BaseFilter):
         self, msg: Message, state: FSMContext
     ) -> bool | dict[str, str]:
         msg_processor = MessageProcessor(msg, state)
+
+        if not msg.text:
+            logger_filters.warning('Message text is empty')
+            return False
+        elif not msg.from_user:
+            logger_filters.warning('User info is empty')
+            return False
+
         text = msg.text.strip()
 
         # Looks for a link anywhere in the text
@@ -106,6 +114,10 @@ class IsAdmins(BaseFilter):
     async def __call__(self, msg: Message, config: Config) -> bool:
         logger_filters.debug('Entry')
 
+        if not msg.from_user:
+            logger_filters.warning('User info is empty')
+            return False
+
         user_id = str(msg.from_user.id)
         admins_id = config.tg_bot.id_admins
         logger_filters.debug(f'{admins_id=}')
@@ -115,39 +127,43 @@ class IsAdmins(BaseFilter):
 
 
 class IsFullName(BaseFilter):
-    async def __call__(self, msg: Message, state: FSMContext) -> bool | dict:
-        logger_filters.debug(f'Entry {__class__.__name__}')
-        msg_processor = MessageProcessor(msg, state)
+    async def __call__(
+        self,
+        msg: Message,
+        state: FSMContext,
+        msg_processor: MessageProcessor,
+    ) -> bool | dict:
+        logger_filters.debug(f'Entry {self.__class__.__name__}')
 
-        # - Разрешает дефисы в словах (но не в начале/конце)
-        # - Разрешает пробел между словами
-        pattern = r"""
-            ^
-            [ёа-яa-z]+(?:-[ёа-яa-z]+)?  # Первое слово (с возможным дефисом)
-            (?:\s+[ёа-яa-z]+(?:-[ёа-яa-z]+)?)+  # Остальные слова
-            $
-        """
-
-        if msg.content_type != ContentType.TEXT:
-            await self._delete_and_notify(msg, msg_processor)
+        if (
+            msg.content_type != ContentType.TEXT
+            or not msg.text
+            or not msg.from_user
+        ):
+            logger_filters.warning(
+                'Invalid message format, missing text or user info'
+            )
+            if msg.content_type != ContentType.TEXT:
+                await self._delete_and_notify(msg, msg_processor)
             return False
 
         text = msg.text.strip()
+        user_id = msg.from_user.id
+        username = await get_username(msg)
+
         if len(text) > 30:
             await self._delete_and_notify(
                 msg,
                 msg_processor,
-                message='Длинна ФИО больше 30-ти символов 😮',
+                message='Длина ФИО больше 30-ти символов 😮',
             )
             return False
+
         words = text.split()
 
-        # Проверяем количество слов (минимум 2)
         if len(words) < 2:
             logger_filters.warning(
-                f'Не корректные ФИО от {msg.from_user.id}:'
-                f'{await get_username(msg)}. '
-                f'Введено: {msg.text}'
+                f'Некорректные ФИО от {user_id}: {username}. Введено: {text}'
             )
             await self._delete_and_notify(
                 msg,
@@ -156,36 +172,40 @@ class IsFullName(BaseFilter):
             )
             return False
 
+        pattern = r"""
+            ^
+            [ёа-яa-z]+(?:-[ёа-яa-z]+)?
+            (?:\s+[ёа-яa-z]+(?:-[ёа-яa-z]+)?)+
+            $
+        """
+
         if re.fullmatch(
             pattern, text, flags=re.VERBOSE | re.IGNORECASE
         ) and not any(char.isdigit() for char in text):
-            # Капитализируем каждую часть слов с дефисами
             capitalized_words = [
                 '-'.join(part.capitalize() for part in word.split('-'))
                 for word in words
             ]
-            logger_filters.debug(f'Exit {__class__.__name__}')
+            logger_filters.debug(f'Exit {self.__class__.__name__}')
             return {'full_name': ' '.join(capitalized_words)}
-        else:
-            logger_filters.warning(
-                f'Не корректные ФИО от {msg.from_user.id}:'
-                f'{await get_username(msg)}.'
-                f'Введено: {msg.text}'
-            )
-            await self._delete_and_notify(
-                msg, msg_processor, message='Некорректно введены данные'
-            )
-            return False
+
+        # Если регулярка не прошла
+        logger_filters.warning(
+            f'Некорректные ФИО от {user_id}: {username}. Введено: {text}'
+        )
+        await self._delete_and_notify(
+            msg, msg_processor, message='Некорректно введены данные'
+        )
+        return False
 
     @staticmethod
     async def _delete_and_notify(
-        msg: Message, msg_processor: MessageProcessor, message: str = None
+        msg: Message,
+        msg_processor: MessageProcessor,
+        message: str | None = None,
     ) -> None:
         """Deletes a message and sends a notification"""
-
-        await msg.bot.delete_message(
-            chat_id=msg.chat.id, message_id=msg.message_id
-        )
+        await msg.delete()
 
         if message:
             response = await msg.answer(
@@ -200,20 +220,16 @@ class IsCorrectData(BaseFilter):
     async def __call__(
         self, msg: Message, state: FSMContext, msg_processor: MessageProcessor
     ) -> bool | dict[str, str]:
-        logger_filters.debug(f'Entry {__class__.__name__}')
+        logger_filters.debug(f'Entry {self.__class__.__name__}')
         username = await get_username(msg)
 
         if msg.content_type != ContentType.TEXT:
-            await msg.bot.delete_message(
-                chat_id=msg.chat.id, message_id=msg.message_id
-            )
+            await msg.delete()
             return False
 
         if not msg.text:
-            logger_filters.debug(f'Exit False {__class__.__name__}')
-            await msg.bot.delete_message(
-                chat_id=msg.chat.id, message_id=msg.message_id
-            )
+            logger_filters.debug(f'Exit False {self.__class__.__name__}')
+            await msg.delete()
             return False
 
         start_course = datetime.strptime('01.03.2024', '%d.%m.%Y')
@@ -223,9 +239,7 @@ class IsCorrectData(BaseFilter):
         try:
             date_obj = datetime.strptime(date_str, '%d.%m.%Y')
             if date_obj.date() < start_course.date():
-                await msg.bot.delete_message(
-                    chat_id=msg.chat.id, message_id=msg.message_id
-                )
+                await msg.delete()
                 value = await msg.answer(
                     f'{username}, вы указали дату, когда курс еще не был '
                     f'создан)'
@@ -237,9 +251,7 @@ class IsCorrectData(BaseFilter):
 
             server_date = datetime.now().date()
             if date_obj.date() > (server_date + timedelta(days=1)):
-                await msg.bot.delete_message(
-                    chat_id=msg.chat.id, message_id=msg.message_id
-                )
+                await msg.delete()
                 value = await msg.answer(
                     f'{username}, вы указали дату из будущего.\n'
                     f'Пожалуйста, повторите.'
@@ -249,17 +261,15 @@ class IsCorrectData(BaseFilter):
                 )
                 return False
 
-            logger_filters.debug(f'Exit Done {__class__.__name__}')
+            logger_filters.debug(f'Exit Done {self.__class__.__name__}')
             return {'date': date_str}
 
         except ValueError:
             logger_filters.warning(
-                f'Некорректная дата:{username}:{msg.from_user.id}:[{date_str}]'
+                f'Некорректная дата:{username}:{msg.from_user}:[{date_str}]'
             )
-            logger_filters.debug(f'Exit False {__class__.__name__}')
-            await msg.bot.delete_message(
-                chat_id=msg.chat.id, message_id=msg.message_id
-            )
+            logger_filters.debug(f'Exit False {self.__class__.__name__}')
+            await msg.delete()
             value = await msg.answer(
                 'Неверный формат даты. Пожалуйста, введите дату в формате '
                 'ДД.ММ.ГГГГ'
@@ -276,23 +286,25 @@ class IsCorrectEmail(BaseFilter):
         """
 
         if msg.content_type != ContentType.TEXT:
-            await msg.bot.delete_message(
-                chat_id=msg.chat.id, message_id=msg.message_id
-            )
+            await msg.delete()
+            logger_filters.warning('Content type is not TEXT')
+            return False
+        if not msg.text:
+            logger_filters.warning('Message text is empty')
+            return False
+
         email = msg.text.strip()
         pattern = r"""
                 ^
-                [a-zA-Z0-9_.+-]+    # Локальная часть (до @)
+                [a-zA-Z0-9_.+-]+
                 @
-                [a-zA-Z0-9-]+       # Домен
-                (\.[a-zA-Z0-9-]+)*  # Поддомены
-                \.[a-zA-Z]{2,}      # Верхнеуровневый домен (минимум 2 буквы)
+                [a-zA-Z0-9-]+
+                (\.[a-zA-Z0-9-]+)*
+                \.[a-zA-Z]{2,}
                 $
             """
         if re.fullmatch(pattern, email, re.VERBOSE):
             return True
         else:
-            await msg.bot.delete_message(
-                chat_id=msg.chat.id, message_id=msg.message_id
-            )
+            await msg.delete()
             return False
